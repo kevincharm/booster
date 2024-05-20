@@ -7,7 +7,7 @@ contract MockBooster is Booster {
     constructor(
         address randomiser_,
         address tokenAddress_,
-        RarityAmount[] memory rarityAmountsPerPack_
+        uint256[] memory rarityAmountsPerPack_
     ) Booster(randomiser_, tokenAddress_, rarityAmountsPerPack_) {}
 
     function testOpen(uint256 seed, address receiver) external {

@@ -26,14 +26,8 @@ describe('Booster', () => {
             ANYRAND,
             await token.getAddress(),
             [
-                {
-                    rarity: 0,
-                    amount: 4,
-                },
-                {
-                    rarity: 1,
-                    amount: 1,
-                },
+                4, // common
+                1, // rare
             ],
         )
     })

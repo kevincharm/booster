@@ -6,23 +6,19 @@ import {IERC165, ERC165} from "@openzeppelin/contracts/utils/introspection/ERC16
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {FeistelShuffleOptimised} from "./lib/FeistelShuffleOptimised.sol";
+import {Withdrawable} from "./lib/Withdrawable.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IAnyrand} from "./interfaces/IAnyrand.sol";
 
-contract Booster is ERC165, IERC1155Receiver, Ownable {
-    struct RarityAmount {
-        uint256 rarity;
-        uint256 amount;
-    }
-
+contract Booster is ERC165, IERC1155Receiver, Withdrawable, Ownable {
     /// @notice Anyrand
     address public immutable randomiser;
     /// @notice Address of ERC1155 that can be loaded into this contract
     address public immutable tokenAddress;
     /// @notice How many tokens per pack
     uint256 public immutable tokensPerPack;
-    /// @notice How many tokens per rarity per pack
-    RarityAmount[] public rarityAmountsPerPack;
+    /// @notice How many tokens per rarity per pack. index = rarity
+    uint256[] public rarityAmountsPerPack;
 
     uint256 public totalTokens;
     /// @notice Token ID list according to rarities
@@ -45,7 +41,7 @@ contract Booster is ERC165, IERC1155Receiver, Ownable {
     constructor(
         address randomiser_,
         address tokenAddress_,
-        RarityAmount[] memory rarityAmountsPerPack_
+        uint256[] memory rarityAmountsPerPack_
     ) Ownable(msg.sender) {
         randomiser = randomiser_;
         tokenAddress = tokenAddress_;
@@ -53,7 +49,7 @@ contract Booster is ERC165, IERC1155Receiver, Ownable {
         uint256 tokensPerPack_;
         for (uint256 i; i < rarityAmountsPerPack_.length; ++i) {
             rarityAmountsPerPack.push(rarityAmountsPerPack_[i]);
-            tokensPerPack_ += rarityAmountsPerPack_[i].amount;
+            tokensPerPack_ += rarityAmountsPerPack_[i];
         }
         tokensPerPack = tokensPerPack_;
     }
@@ -62,9 +58,20 @@ contract Booster is ERC165, IERC1155Receiver, Ownable {
         if (!isActive) revert Inactive();
     }
 
-    function activate() external onlyOwner {
+    function _assertIsNotActive() internal view {
         if (isActive) revert AlreadyActive();
+    }
+
+    function _authoriseWithdrawal() internal override onlyOwner {}
+
+    function activate() external onlyOwner {
+        _assertIsNotActive();
         isActive = true;
+    }
+
+    function deactivate() external onlyOwner {
+        _assertIsActive();
+        isActive = false;
     }
 
     function open() external payable {
@@ -102,9 +109,9 @@ contract Booster is ERC165, IERC1155Receiver, Ownable {
 
     function _finishOpen(uint256 seed, address receiver) internal {
         for (uint256 i; i < rarityAmountsPerPack.length; ++i) {
-            RarityAmount memory rarityAmount = rarityAmountsPerPack[i];
-            uint256 rarity = rarityAmount.rarity;
-            for (uint256 j; j < rarityAmount.amount; ++j) {
+            uint256 rarity = i;
+            uint256 rarityAmount = rarityAmountsPerPack[i];
+            for (uint256 j; j < rarityAmount; ++j) {
                 uint256 domain = tokenIdsPerRarity[rarity].length;
                 uint256 shuffled = FeistelShuffleOptimised.shuffle(
                     0,
@@ -133,7 +140,7 @@ contract Booster is ERC165, IERC1155Receiver, Ownable {
     function loadCommons(
         uint256[] calldata ids,
         uint256[] calldata values
-    ) external onlyOwner {
+    ) external {
         ERC1155(tokenAddress).safeBatchTransferFrom(
             msg.sender,
             address(this),
@@ -146,7 +153,7 @@ contract Booster is ERC165, IERC1155Receiver, Ownable {
     function loadRares(
         uint256[] calldata ids,
         uint256[] calldata values
-    ) external onlyOwner {
+    ) external {
         ERC1155(tokenAddress).safeBatchTransferFrom(
             msg.sender,
             address(this),
@@ -184,6 +191,7 @@ contract Booster is ERC165, IERC1155Receiver, Ownable {
         uint256 value,
         bytes calldata data
     ) external returns (bytes4) {
+        _assertIsNotActive();
         if (msg.sender != tokenAddress)
             revert InvalidTokenAddress(tokenAddress, msg.sender);
         if (data.length != 32) revert UnexpectedDataLength(32, data.length);
@@ -218,6 +226,7 @@ contract Booster is ERC165, IERC1155Receiver, Ownable {
         uint256[] calldata values,
         bytes calldata data
     ) external returns (bytes4) {
+        _assertIsNotActive();
         if (msg.sender != tokenAddress)
             revert InvalidTokenAddress(tokenAddress, msg.sender);
         if (data.length != 32) revert UnexpectedDataLength(32, data.length);
