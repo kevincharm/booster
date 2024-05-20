@@ -72,7 +72,7 @@ contract Booster is ERC165, IERC1155Receiver, Ownable {
         if (totalTokens < tokensPerPack) revert InsufficientTokens();
         totalTokens -= tokensPerPack;
 
-        uint256 requestPrice = IAnyrand(randomiser).getRequestPrice(500_000);
+        uint256 requestPrice = IAnyrand(randomiser).getRequestPrice(2_000_000);
         if (address(this).balance < requestPrice) {
             revert InsufficientPayment(requestPrice);
         }
