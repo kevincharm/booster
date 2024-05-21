@@ -29,8 +29,17 @@ contract Booster is ERC165, IERC1155Receiver, Withdrawable, Ownable {
     mapping(uint256 requestId => address receiver)
         internal requestIdsToReceiver;
 
-    error InsufficientPayment(uint256 requestPrice);
+    event PackOpeningRequested(
+        uint256 indexed requestId,
+        address indexed receiver
+    );
+    event PackOpened(
+        uint256 indexed requestId,
+        address indexed receiver,
+        uint256[] tokenIds
+    );
 
+    error InsufficientPayment(uint256 requestPrice);
     error InvalidTokenAddress(address expected, address actual);
     error UnexpectedDataLength(uint256 expected, uint256 actual);
     error AlreadyActive();
@@ -87,6 +96,7 @@ contract Booster is ERC165, IERC1155Receiver, Withdrawable, Ownable {
             value: requestPrice
         }(block.timestamp + 30, 2_000_000);
         requestIdsToReceiver[requestId] = msg.sender;
+        emit PackOpeningRequested(requestId, msg.sender);
     }
 
     /// @notice Receive random words from a randomiser.
@@ -104,36 +114,46 @@ contract Booster is ERC165, IERC1155Receiver, Withdrawable, Ownable {
         require(receiver != address(0), "Unknown requestId");
         requestIdsToReceiver[requestId] = address(0);
         uint256 seed = randomWords[0];
-        _finishOpen(seed, receiver);
+        uint256[] memory tokenIds = _finishOpen(seed, receiver);
+        emit PackOpened(requestId, receiver, tokenIds);
     }
 
-    function _finishOpen(uint256 seed, address receiver) internal {
+    function _finishOpen(
+        uint256 seed,
+        address receiver
+    ) internal returns (uint256[] memory tokenIds) {
+        tokenIds = new uint256[](tokensPerPack);
+        uint256 counter;
         for (uint256 i; i < rarityAmountsPerPack.length; ++i) {
             uint256 rarity = i;
             uint256 rarityAmount = rarityAmountsPerPack[i];
             for (uint256 j; j < rarityAmount; ++j) {
-                uint256 domain = tokenIdsPerRarity[rarity].length;
+                seed = uint256(keccak256(abi.encodePacked(seed)));
+                uint256[] storage rarityTokenIds = tokenIdsPerRarity[rarity];
+                uint256 domain = rarityTokenIds.length;
                 uint256 shuffled = FeistelShuffleOptimised.shuffle(
                     0,
                     domain,
                     seed,
                     4
                 );
-                uint256 tokenId = tokenIdsPerRarity[rarity][shuffled];
-                ERC1155(tokenAddress).safeTransferFrom(
-                    address(this),
-                    receiver,
-                    tokenId,
-                    1,
-                    ""
-                );
+                uint256 tokenId = rarityTokenIds[shuffled];
+                tokenIds[counter++] = tokenId;
                 // Switch this one with last
-                tokenIdsPerRarity[rarity][shuffled] = tokenIdsPerRarity[rarity][
-                    domain - 1
-                ];
+                rarityTokenIds[shuffled] = rarityTokenIds[domain - 1];
                 // Remove last
-                tokenIdsPerRarity[rarity].pop();
+                rarityTokenIds.pop();
             }
+        }
+        // Do actual transfers
+        for (uint256 i; i < tokenIds.length; ++i) {
+            ERC1155(tokenAddress).safeTransferFrom(
+                address(this),
+                receiver,
+                tokenIds[i],
+                1,
+                ""
+            );
         }
     }
 

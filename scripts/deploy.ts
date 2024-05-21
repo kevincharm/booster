@@ -2,7 +2,7 @@ import { ethers, run } from 'hardhat'
 import { Booster__factory } from '../typechain-types'
 
 const ANYRAND = '0x26881E8C452928A889654e4a8BaFBf205dD87812'
-const TOKEN_ADDRESS = '0xad5c50fafe2b971d98f37a07c8a532381cce3a0b'
+const TOKEN_ADDRESS = '0xa2eaf53712509dde1dc8f18af7c6576e69946be9'
 
 async function main() {
     const [deployer] = await ethers.getSigners()

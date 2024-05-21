@@ -10,7 +10,10 @@ contract MockBooster is Booster {
         uint256[] memory rarityAmountsPerPack_
     ) Booster(randomiser_, tokenAddress_, rarityAmountsPerPack_) {}
 
-    function testOpen(uint256 seed, address receiver) external {
-        _finishOpen(seed, receiver);
+    function testOpen(
+        uint256 seed,
+        address receiver
+    ) external returns (uint256[] memory) {
+        return _finishOpen(seed, receiver);
     }
 }
